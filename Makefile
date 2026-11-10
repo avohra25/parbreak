@@ -8,7 +8,7 @@ TEST_SRC := $(wildcard tests/*.c)
 
 .PHONY: all test sanitize clean
 
-all: build/libparbreak.a
+all: build/libparbreak.a build/parbreak
 
 build:
 	mkdir -p build
@@ -21,8 +21,12 @@ build/libparbreak.a: $(LIB_SRC) include/parbreak.h | build
 build/test_parbreak: $(LIB_SRC) $(TEST_SRC) include/parbreak.h tests/test.h | build
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(LIB_SRC) $(TEST_SRC) -o $@ $(LDLIBS)
 
-test: build/test_parbreak
+build/parbreak: $(LIB_SRC) cli/main.c include/parbreak.h | build
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(LIB_SRC) cli/main.c -o $@ $(LDLIBS)
+
+test: build/test_parbreak build/parbreak
 	./build/test_parbreak
+	sh tests/cli_test.sh build/parbreak
 
 sanitize:
 	$(MAKE) clean
