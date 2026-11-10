@@ -95,6 +95,57 @@ int pb_first_fit(const pb_item *items, size_t n, const double *widths,
 
 void pb_breaks_free(pb_breaks *b);
 
+/* ---------------------------------------------------------------------- */
+/* Monospace text layout                                                  */
+/* ---------------------------------------------------------------------- */
+
+/* Display width of UTF-8 text in terminal columns: combining marks and
+ * zero-width characters count 0, East Asian wide/fullwidth characters
+ * count 2, everything else 1. Invalid bytes count 1 each. */
+size_t pb_utf8_width(const char *s, size_t len);
+
+typedef enum {
+    PB_ALIGN_JUSTIFY, /* flush left and right (last line ragged) */
+    PB_ALIGN_LEFT,    /* ragged right */
+    PB_ALIGN_RIGHT,   /* ragged left */
+    PB_ALIGN_CENTER
+} pb_align;
+
+typedef struct {
+    pb_align align;
+    double indent;           /* first-line indent in columns (default 0) */
+    double space_stretch;    /* justified mode: stretch per space (default 1) */
+    double ragged_stretch;   /* ragged modes: stretch per break (default 3) */
+    double hyphen_penalty;   /* penalty for breaking after an explicit '-' (default 50) */
+} pb_layout_opts;
+
+void pb_layout_opts_default(pb_layout_opts *o);
+
+/* A paragraph built from text. Owns a copy of the text that its items point into. */
+typedef struct {
+    pb_item *items;
+    size_t n;
+    char *text;
+    pb_align align;
+} pb_paragraph;
+
+/* Split `text` on whitespace into words and build the item list for the
+ * chosen alignment, ending with \parfillskip and a forced break. Words may
+ * break after an explicit hyphen ("well-|known"). */
+int pb_paragraph_build(const char *text, size_t len, const pb_layout_opts *o, pb_paragraph *out);
+void pb_paragraph_free(pb_paragraph *p);
+
+/* Render broken lines as text, one '\n'-terminated line each. Justified
+ * lines are padded to exactly the line width by distributing extra spaces
+ * in proportion to each space's stretch (largest remainder, alternating the
+ * tie direction between lines). Returns a malloc'd string or NULL. */
+char *pb_render(const pb_paragraph *p, const pb_breaks *b, const double *widths, size_t nwidths);
+
+/* Convenience: build, break with Knuth-Plass (or first-fit if
+ * `first_fit`), and render one paragraph at a fixed width. */
+int pb_format(const char *text, size_t len, double width, const pb_layout_opts *o,
+              const pb_params *params, int first_fit, char **out);
+
 #ifdef __cplusplus
 }
 #endif
