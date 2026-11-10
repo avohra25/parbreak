@@ -74,6 +74,8 @@ void pb_layout_opts_default(pb_layout_opts *o) {
     o->space_stretch = 1;
     o->ragged_stretch = 3;
     o->hyphen_penalty = 50;
+    o->hyphenator = NULL;
+    o->auto_hyphen_penalty = 50;
 }
 
 typedef struct {
@@ -105,18 +107,40 @@ static int push_space(itemvec *v, const pb_layout_opts *o) {
            push(v, pb_glue(1, -o->ragged_stretch, 0));
 }
 
+/* Push a hyphen-free piece of a word, splitting it at Liang hyphenation
+ * points into boxes joined by flagged penalties that render a '-'. */
+static int push_piece(itemvec *v, const char *w, size_t len, const pb_layout_opts *o) {
+    if (o->hyphenator && len >= 4 && len <= 256) {
+        unsigned char points[257];
+        if (pb_hyphenate(o->hyphenator, w, len, points) > 0) {
+            size_t start = 0;
+            for (size_t i = 1; i < len; i++) {
+                if (!points[i]) continue;
+                if (!push(v, pb_box((double)pb_utf8_width(w + start, i - start), w + start, i - start)))
+                    return 0;
+                pb_item hy = pb_penalty(1, o->auto_hyphen_penalty, 1);
+                hy.text = "-";
+                hy.len = 1;
+                if (!push(v, hy)) return 0;
+                start = i;
+            }
+            return push(v, pb_box((double)pb_utf8_width(w + start, len - start), w + start, len - start));
+        }
+    }
+    return push(v, pb_box((double)pb_utf8_width(w, len), w, len));
+}
+
 /* Push one word, allowing a break after each interior explicit hyphen. */
 static int push_word(itemvec *v, const char *w, size_t len, const pb_layout_opts *o) {
     size_t start = 0;
     for (size_t i = 0; i < len; i++) {
         if (w[i] == '-' && i > start && w[i - 1] != '-' && i + 1 < len && w[i + 1] != '-') {
-            size_t plen = i + 1 - start;
-            if (!push(v, pb_box((double)pb_utf8_width(w + start, plen), w + start, plen))) return 0;
+            if (!push_piece(v, w + start, i + 1 - start, o)) return 0;
             if (!push(v, pb_penalty(0, o->hyphen_penalty, 1))) return 0;
             start = i + 1;
         }
     }
-    return push(v, pb_box((double)pb_utf8_width(w + start, len - start), w + start, len - start));
+    return push_piece(v, w + start, len - start, o);
 }
 
 int pb_paragraph_build(const char *text, size_t len, const pb_layout_opts *o, pb_paragraph *out) {

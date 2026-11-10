@@ -4,7 +4,7 @@ Optimal paragraph line breaking in plain C11: the Knuth-Plass total-fit
 algorithm that TeX uses, plus a greedy first-fit breaker for comparison.
 No dependencies beyond libc and libm.
 
-> Work in progress: core breaking engine and monospace text layout so far.
+> Work in progress: breaking engine, text layout and hyphenation so far.
 
 ## The model
 
@@ -43,6 +43,25 @@ measure by spreading extra spaces by largest remainder, alternating sides
 between lines. Ragged-right, ragged-left and centered text use Knuth and
 Plass's ragged construction, so the right edge is evened out over the whole
 paragraph instead of line by line.
+
+## Hyphenation
+
+`pb_hyph_en_us()` loads the TeX US English patterns (Liang's patterns as
+extended by Gerard Kuiken, 4938 patterns plus exceptions) that are bundled in
+`data/hyph-en-us.txt` and compiled into the library by
+`tools/embed_patterns.py`. Pass it as `o.hyphenator` and words get flagged
+penalties at their hyphenation points:
+
+```c
+pb_hyphenator *en = pb_hyph_en_us();
+unsigned char pts[32];
+pb_hyphenate(en, "hyphenation", 11, pts);   /* hy-phen-ation */
+```
+
+You can also build your own hyphenator from patterns (`pb_hyph_add_pattern`,
+`pb_hyph_add_exception`, or `pb_hyph_load` for a whole file) and change the
+left/right minimums. The C implementation is checked against an independent
+Python one (`tools/liang_ref.py`) on 3000+ words.
 
 ## Build and test
 

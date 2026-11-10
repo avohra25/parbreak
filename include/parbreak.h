@@ -96,6 +96,37 @@ int pb_first_fit(const pb_item *items, size_t n, const double *widths,
 void pb_breaks_free(pb_breaks *b);
 
 /* ---------------------------------------------------------------------- */
+/* Liang hyphenation                                                      */
+/* ---------------------------------------------------------------------- */
+
+typedef struct pb_hyphenator pb_hyphenator;
+
+/* An empty hyphenator (left/right minimums 2 and 3, as in TeX). */
+pb_hyphenator *pb_hyph_new(void);
+/* A hyphenator loaded with the bundled TeX US English patterns. */
+pb_hyphenator *pb_hyph_en_us(void);
+void pb_hyph_free(pb_hyphenator *h);
+
+/* Add one Liang pattern such as ".ach4" or "hy3ph" (letters a-z and '.',
+ * digits 0-9 between them). Returns PB_OK or PB_ERR_ARG / PB_ERR_NOMEM. */
+int pb_hyph_add_pattern(pb_hyphenator *h, const char *pat, size_t len);
+/* Add a whole-word exception such as "ta-ble" (overrides the patterns). */
+int pb_hyph_add_exception(pb_hyphenator *h, const char *word, size_t len);
+/* Load a pattern file: whitespace-separated tokens, '%' comments, and the
+ * section markers "@patterns" / "@exceptions". On error *bad_line (if not
+ * NULL) receives the 1-based line number. */
+int pb_hyph_load(pb_hyphenator *h, const char *text, size_t len, size_t *bad_line);
+void pb_hyph_set_mins(pb_hyphenator *h, int left, int right);
+size_t pb_hyph_pattern_count(const pb_hyphenator *h);
+
+/* Find hyphenation points in one word. points must have room for len+1
+ * entries; points[i] is set to 1 when a hyphen may go before byte i. Only
+ * the run of ASCII letters in the middle of the word (after stripping
+ * leading/trailing punctuation) is hyphenated; words with other characters
+ * inside are left alone. Returns the number of points. */
+size_t pb_hyphenate(const pb_hyphenator *h, const char *word, size_t len, unsigned char *points);
+
+/* ---------------------------------------------------------------------- */
 /* Monospace text layout                                                  */
 /* ---------------------------------------------------------------------- */
 
@@ -117,6 +148,8 @@ typedef struct {
     double space_stretch;    /* justified mode: stretch per space (default 1) */
     double ragged_stretch;   /* ragged modes: stretch per break (default 3) */
     double hyphen_penalty;   /* penalty for breaking after an explicit '-' (default 50) */
+    const pb_hyphenator *hyphenator; /* automatic hyphenation (default NULL = off) */
+    double auto_hyphen_penalty;      /* penalty for an inserted hyphen (default 50) */
 } pb_layout_opts;
 
 void pb_layout_opts_default(pb_layout_opts *o);
